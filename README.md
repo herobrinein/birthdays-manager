@@ -95,5 +95,3 @@
 本项目采用 **MIT License** 许可证。
 
 你可以免费使用、复制、修改、合并、出版发行、散布、再授权及贩售本软件及其副本。
-
-Copyright (c) 2023-2025 Birthday Manager Contributors
