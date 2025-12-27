@@ -1,0 +1,2020 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生日管家</title>
+	<title>生日管家</title>
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <!-- iOS 支持 (让它在 iPhone 上看起来像 App) -->
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#e74c3c">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+	<link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <script src="https://cdn.jsdelivr.net/npm/lunar-javascript/lunar.js"></script>
+    <script>
+        // 在页面加载前检查用户主题偏好
+        (function() {
+            const savedTheme = localStorage.getItem('theme');
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            
+            if (savedTheme === 'dark' || (!savedTheme && prefersDark)) {
+                document.documentElement.setAttribute('data-theme', 'dark');
+            }
+        })();
+    </script>
+    <style>
+        :root {
+            /* 颜色变量 - 默认浅色 */
+            --bg-color: #f8f9fa;
+            --card-bg: #ffffff;
+            --text-main: #2c3e50;
+            --text-sub: #7f8c8d;
+            --primary: #e74c3c;
+            --primary-light: #ffebe9;
+            --accent: #3498db;
+            --accent-light: #ebf5fb;
+            --success: #2ecc71;
+            --border: #e0e0e0;
+            --today-bg: #fff5f5;
+            --shadow: rgba(0, 0, 0, 0.08);
+            --sidebar-width: 320px;
+            --radius: 12px;
+            --transition: all 0.3s ease;
+            --celebration: #ff6b6b;
+            --celebration-light: #fff0f0;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #121826;
+            --card-bg: #1e293b;
+            --text-main: #e2e8f0;
+            --text-sub: #94a3b8;
+            --primary: #ef4444;
+            --primary-light: #3d2b2b;
+            --accent: #3b82f6;
+            --accent-light: #1e293b;
+            --success: #10b981;
+            --border: #334155;
+            --today-bg: #3d2b2b;
+            --shadow: rgba(0, 0, 0, 0.2);
+            --celebration: #ff8a8a;
+            --celebration-light: #3d2b2b;
+        }
+		
+		#title-icon {
+            color: var(--primary);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+		
+		/* 为以下元素添加过渡动画 */
+        .theme-toggle i,
+        .user-item,
+        .birthday-tag,
+        .festival,
+        .age-num,
+        .avatar,
+        .celebration-avatar,
+        .upcoming-card,
+        .celebration-card,
+        .day-cell .solar-num,
+        .day-cell .lunar-info,
+        .calendar-type,
+        .celebration-title i,
+        .celebration-card::before {
+            transition: var(--transition);
+        }
+        
+        /* 主题切换时按钮颜色的平滑过渡 */
+        .calendar-header button,
+        .today-btn {
+            transition: var(--transition);
+        }
+        
+        /* 确保所有文本颜色变化也有过渡 */
+        h2, h3, h4, p, .user-name, .user-details, 
+        .celebration-name, .celebration-date,
+        .upcoming-name, .upcoming-date {
+            transition: color 0.3s ease;
+        }
+        
+        /* 图片边框颜色的过渡 */
+        .avatar, .celebration-avatar {
+            transition: border-color 0.3s ease, transform 0.3s ease;
+        }
+        
+        /* 确保按钮悬停效果平滑 */
+        .calendar-header button:hover,
+        .today-btn:hover {
+            transition: var(--transition);
+        }
+        
+        /* 为侧边栏面板添加过渡 */
+        .friends-panel,
+        .upcoming-panel {
+            transition: var(--transition);
+        }
+        
+        /* 为庆祝横幅添加过渡 */
+        .celebration-banner {
+            transition: opacity 0.5s ease, transform 0.5s ease;
+        }
+        
+        /* 全屏庆祝弹窗的显示/隐藏过渡 */
+        .fullscreen-celebration {
+            transition: opacity 0.5s ease;
+        }
+
+        body {
+            font-family: 'Segoe UI', "Microsoft YaHei", sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+            transition: var(--transition);
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr var(--sidebar-width);
+            gap: 24px;
+            width: 100%;
+            max-width: 1200px;
+            margin-bottom: 24px;
+        }
+
+        /* 日历样式 */
+        .calendar-card {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 24px;
+            box-shadow: 0 6px 20px var(--shadow);
+            transition: var(--transition);
+            border: 1px solid var(--border);
+            position: relative;
+        }
+
+        /* 庆祝横幅样式 */
+        .celebration-banner {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, var(--celebration), #ff8a8a);
+            color: white;
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { transform: translateX(-50%) scale(1); }
+            50% { transform: translateX(-50%) scale(1.05); }
+            100% { transform: translateX(-50%) scale(1); }
+        }
+
+        .calendar-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .calendar-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        .calendar-header button {
+            background: var(--accent-light);
+            border: none;
+            color: var(--accent);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .calendar-header button:hover {
+            background: var(--accent);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-template-rows: auto repeat(6, 1fr); /* 固定6行 */
+            gap: 8px;
+            height: 700px; /* 固定最小高度 */
+        }
+		
+		/* 日历导航按钮容器 */
+        .calendar-nav {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* 回到今天按钮 */
+        .today-btn {
+            background: var(--primary-light);
+            border: none;
+            color: var(--primary);
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            font-weight: 500;
+            white-space: nowrap; /* 防止文字换行 */
+        }
+        
+        .today-btn:hover {
+            background: var(--primary);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .day-name {
+            text-align: center;
+            font-weight: 600;
+            padding: 12px 0;
+            color: var(--text-sub);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .day-cell {
+            min-height: 100px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 8px;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            transition: var(--transition);
+            background: var(--card-bg);
+            /* 添加弹性基础高度 */
+            flex: 1 0 auto;
+        }
+
+        .day-cell:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .day-cell.today {
+            background-color: var(--today-bg);
+            border: 2px solid var(--primary);
+            position: relative;
+        }
+
+        .day-cell.today::before {
+            content: "今天";
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: var(--primary);
+            color: white;
+            font-size: 0.6rem;
+            padding: 1px 6px;
+            border-radius: 10px;
+        }
+        
+        /* 今天有人过生日的样式 */
+        .day-cell.today-birthday {
+            animation: birthdayGlow 2s infinite alternate;
+            border: 2px solid var(--celebration);
+            background-color: var(--celebration-light);
+        }
+        
+        @keyframes birthdayGlow {
+            from { box-shadow: 0 0 10px rgba(255, 107, 107, 0.5); }
+            to { box-shadow: 0 0 20px rgba(255, 107, 107, 0.8); }
+        }
+
+        .solar-num {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-bottom: 2px;
+        }
+
+        .lunar-info {
+            font-size: 0.75rem;
+            color: var(--text-sub);
+            margin-bottom: 4px;
+            min-height: 16px;
+        }
+
+        .festival {
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        .birthday-tag {
+            background: linear-gradient(135deg, var(--primary), #ff8a8a);
+            color: white;
+            font-size: 0.75rem;
+            padding: 4px 8px;
+            border-radius: 6px;
+            margin-top: 4px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            box-shadow: 0 2px 4px rgba(231, 76, 60, 0.2);
+        }
+
+        .birthday-tag i {
+            font-size: 0.7rem;
+        }
+
+        /* 侧边栏与列表 */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: 100%;
+        }
+		
+        .friends-panel {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: 0 6px 20px var(--shadow);
+            transition: var(--transition);
+            border: 1px solid var(--border);
+            height: 834px; /* 保持原有高度 */
+            display: flex;
+            flex-direction: column;
+            /* 添加以下两行以实现滚动 */
+            overflow: hidden; /* 防止面板本身溢出 */
+            position: relative; /* 为绝对定位的滚动区域提供参考 */
+        }
+        
+        /* 添加好友列表滚动容器样式 */
+        .friends-list-container {
+            flex: 1; /* 占据剩余空间 */
+            overflow-y: auto; /* 垂直滚动 */
+            overflow-x: hidden; /* 隐藏横向滚动条 */
+            margin-top: 16px; /* 与标题保持距离 */
+            padding-right: 4px; /* 为滚动条留出空间 */
+            /* 确保内容不会超出容器 */
+            max-width: 100%;
+        }
+		
+		/* 确保滚动容器内容不会溢出 */
+        #friendsList {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        /* 移除之前可能添加的额外样式 */
+        .user-item:last-child {
+            border-bottom: 1px solid var(--border); /* 确保最后一项也有边框 */
+        }
+        
+        /* 自定义滚动条样式 */
+        .friends-list-container::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .friends-list-container::-webkit-scrollbar-track {
+            background: var(--bg-color);
+            border-radius: 3px;
+        }
+        
+        .friends-list-container::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 3px;
+        }
+        
+        .friends-list-container::-webkit-scrollbar-thumb:hover {
+            background: var(--text-sub);
+        }
+		
+		/* 为未来30天创建新样式 */
+        .upcoming-panel {
+            background: var(--card-bg);
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: 0 6px 20px var(--shadow);
+            transition: var(--transition);
+            border: 1px solid var(--border);
+            /* 不设置固定高度，让内容自适应 */
+            display: flex;
+            flex-direction: column;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 1200px;
+        }
+		
+		/* 全屏庆祝动画容器 */
+        .fullscreen-celebration {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 9999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            animation: fadeIn 0.5s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* 关闭按钮 */
+        .celebration-close {
+            position: absolute;
+            top: 100px;
+            right: 100px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.2rem;
+            z-index: 10001;
+            transition: all 0.3s ease;
+        }
+        
+        .celebration-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: rotate(90deg);
+        }
+        
+        /* 彩条动画元素 */
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 20px;
+            background: #ff6b6b;
+            top: -20px;
+        }
+        
+        .confetti:nth-child(2n) {
+            background: #4ecdc4;
+        }
+        .confetti:nth-child(3n) {
+            background: #ffe66d;
+        }
+        .confetti:nth-child(4n) {
+            background: #9b5de5;
+        }
+        .confetti:nth-child(5n) {
+            background: #00bbf9;
+        }
+        
+        /* 庆祝消息框 */
+        .celebration-message {
+            background: linear-gradient(135deg, #ff6b6b, #ff8a8a);
+            color: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 500px;
+            z-index: 10000;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            animation: pulseMessage 2s infinite alternate;
+        }
+        
+        @keyframes pulseMessage {
+            0% { transform: scale(1); }
+            100% { transform: scale(1.05); }
+        }
+        
+        .celebration-message h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        .celebration-message h2 i {
+            animation: bounce 1s infinite alternate;
+        }
+        
+        @keyframes bounce {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-10px); }
+        }
+        
+        .celebration-names {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin: 20px 0;
+            color: #fff;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .celebration-countdown {
+            font-size: 1rem;
+            opacity: 0.8;
+            margin-top: 20px;
+        }
+        
+        /* 庆祝面板样式 */
+        .celebration-panel {
+            background: linear-gradient(135deg, var(--celebration-light), var(--card-bg));
+            border: 2px solid var(--celebration);
+            animation: panelPulse 3s infinite alternate;
+        }
+        
+        @keyframes panelPulse {
+            from { box-shadow: 0 0 15px rgba(255, 107, 107, 0.3); }
+            to { box-shadow: 0 0 25px rgba(255, 107, 107, 0.6); }
+        }
+        
+        .celebration-title {
+            color: var(--celebration);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.3rem;
+        }
+        
+        .celebration-title i {
+            animation: spin 4s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .celebration-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+        
+        .celebration-card {
+            background: linear-gradient(135deg, var(--card-bg), var(--celebration-light));
+            border-radius: 12px;
+            padding: 20px;
+            border-left: 6px solid var(--celebration);
+            transition: var(--transition);
+            border: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .celebration-card::before {
+            content: "🎉";
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 1.5rem;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+        
+        .celebration-card::after {
+            content: "";
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: linear-gradient(90deg, var(--celebration), transparent);
+        }
+        
+        .celebration-avatar {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid var(--celebration);
+            margin-bottom: 12px;
+            padding: 2px;
+            background-color: white;
+        }
+        
+        .celebration-name {
+            font-weight: 700;
+            font-size: 1.2rem;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+        
+        .celebration-age {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--celebration);
+            margin: 8px 0;
+        }
+        
+        .celebration-date {
+            font-size: 0.9rem;
+            color: var(--text-sub);
+            margin-top: 5px;
+        }
+
+        .info-panel h3 {
+            margin-top: 0;
+            margin-bottom: 16px;
+            color: var(--text-main);
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .info-panel h3 i {
+            color: var(--accent);
+        }
+
+        .user-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-bottom: 1px solid var(--border);
+            transition: var(--transition);
+            box-sizing: border-box;
+            max-width: 100%;
+        }
+
+        .user-item:hover {
+            background: var(--bg-color);
+            position: relative;
+            z-index: 1;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px var(--shadow);
+        }
+
+        .user-item:last-child {
+            border-bottom: none;
+        }
+
+        .avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            object-fit: cover;
+            background: linear-gradient(135deg, var(--accent-light), var(--accent));
+            padding: 2px;
+            border: 2px solid var(--accent);
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .user-details {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            line-height: 1.4;
+        }
+
+        .age-num {
+            font-family: 'Courier New', monospace;
+            color: var(--success);
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        .calendar-type {
+            display: inline-block;
+            background: var(--bg-color);
+            color: var(--text-sub);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-right: 6px;
+        }
+
+        .calendar-type.lunar {
+            background: #f0f7ff;
+            color: #3498db;
+        }
+		
+		[data-theme="dark"] .calendar-type.lunar {
+            background: #1e293b;
+            color: #93c5fd;
+        }
+
+        .upcoming-list {
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        .upcoming-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        .upcoming-card {
+            background: var(--card-bg);
+            border-radius: 10px;
+            padding: 16px;
+            border-left: 4px solid var(--accent);
+            transition: var(--transition);
+            border: 1px solid var(--border);
+        }
+
+        .upcoming-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 16px var(--shadow);
+        }
+
+        .upcoming-name {
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: var(--text-main);
+        }
+
+        .upcoming-days {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin: 8px 0;
+        }
+
+        .upcoming-date {
+            font-size: 0.85rem;
+            color: var(--text-sub);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--text-sub);
+        }
+
+        .empty-state i {
+            font-size: 2.5rem;
+            color: var(--border);
+            margin-bottom: 16px;
+        }
+
+        .theme-toggle {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            cursor: pointer;
+            font-size: 1.5rem;
+            background: var(--card-bg);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 12px var(--shadow);
+            transition: var(--transition);
+            z-index: 100;
+            border: 1px solid var(--border);
+        }
+
+        .theme-toggle:hover {
+            transform: rotate(15deg);
+        }
+		
+		/* 添加回到今天按钮样式 */
+        .today-btn {
+            background: var(--primary-light);
+            border: none;
+            color: var(--primary);
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: var(--transition);
+            font-weight: 500;
+        }
+        
+        .today-btn:hover {
+            background: var(--primary);
+            color: white;
+            transform: scale(1.05);
+        }
+        
+        /* 调整日历头部布局 */
+        .calendar-header > div {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 992px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                order: -1;
+            }
+        }
+
+        /* 移动端专属优化样式 */
+        @media (max-width: 576px) {
+            body {
+                padding: 12px;
+            }
+            
+            h2 {
+                font-size: 1.3rem;
+                margin-top: 0;
+                padding-top: 10px;
+            }
+            
+            .container {
+                grid-template-columns: 1fr;
+                gap: 16px;
+            }
+            
+            .calendar-card {
+                padding: 16px;
+                margin-top: 20px;
+            }
+            
+            .calendar-header {
+                flex-direction: column;
+                gap: 12px;
+                align-items: flex-start;
+                margin-bottom: 16px;
+            }
+            
+            .calendar-header button {
+                width: 44px; /* 增加宽度 */
+                height: 44px; /* 增加高度 */
+                min-width: 44px; /* 防止被压缩 */
+                font-size: 1rem;
+            }
+            
+            /* 调整"今天"按钮样式 */
+            .today-btn {
+                padding: 10px 16px;
+                font-size: 0.9rem;
+                white-space: nowrap;
+                min-width: 70px; /* 设置最小宽度 */
+                height: 44px; /* 与左右箭头按钮高度一致 */
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            
+            /* 确保日历标题区域有足够空间 */
+            .calendar-header {
+                gap: 12px;
+                padding-bottom: 12px;
+            }
+            
+            .calendar-header h2 {
+                font-size: 1.3rem;
+                order: 1;
+                width: 100%;
+                text-align: center;
+            }
+            
+            .calendar-grid {
+                grid-template-rows: auto repeat(6, 1fr);
+                height: auto;
+                min-height: 450px;
+                gap: 4px;
+            }
+            
+            .day-cell {
+                min-height: 65px;
+                padding: 4px;
+                border-radius: 6px;
+            }
+            
+            .solar-num {
+                font-size: 0.9rem;
+                margin-bottom: 1px;
+            }
+            
+            .lunar-info {
+                font-size: 0.65rem;
+                margin-bottom: 2px;
+            }
+            
+            .birthday-tag {
+                font-size: 0.65rem;
+                padding: 3px 6px;
+                margin-top: 2px;
+            }
+            
+            .friends-panel {
+                padding: 16px;
+                height: 500px; /* 移动端减小高度 */
+            }
+            
+            .friends-list-container {
+                margin-top: 12px;
+            }
+            
+            .user-item {
+                padding: 10px;
+                gap: 10px;
+            }
+            
+            .avatar {
+                width: 42px;
+                height: 42px;
+                min-width: 42px; /* 防止图片被压缩 */
+            }
+            
+            .user-name {
+                font-size: 0.95rem;
+            }
+            
+            .user-details {
+                font-size: 0.8rem;
+            }
+            
+            .age-num {
+                font-size: 0.9rem;
+            }
+            
+            /* 主题切换按钮调整 */
+            .theme-toggle {
+                top: 15px;
+                right: 15px;
+                width: 42px;
+                height: 42px;
+                font-size: 1.2rem;
+            }
+            
+            /* 动态面板调整 */
+            .upcoming-panel {
+                padding: 16px;
+                margin-top: 16px;
+            }
+            
+            .upcoming-cards,
+            .celebration-cards {
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+                gap: 12px;
+            }
+            
+            .upcoming-card,
+            .celebration-card {
+                padding: 14px;
+            }
+            
+            .celebration-avatar {
+                width: 60px;
+                height: 60px;
+            }
+            
+            .celebration-name {
+                font-size: 1rem;
+            }
+            
+            .celebration-age {
+                font-size: 1.3rem;
+            }
+            
+            /* 庆祝横幅调整 */
+            .celebration-banner {
+                font-size: 0.75rem;
+                padding: 6px 12px;
+                top: -12px;
+                white-space: nowrap;
+                max-width: 90%;
+            }
+            
+            /* 全屏庆祝弹窗优化 */
+            .fullscreen-celebration {
+                padding: 20px;
+            }
+            
+            .celebration-close {
+                top: 20px;
+                right: 20px;
+                width: 44px;  /* 确保宽高相等 */
+                height: 44px; /* 确保宽高相等 */
+                font-size: 1.2rem;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50% !important; /* 强制圆形 */
+                aspect-ratio: 1; /* 保持宽高比 */
+            }
+            
+            .celebration-message {
+                padding: 30px 20px;
+                margin: 0 15px;
+            }
+            
+            .celebration-message h2 {
+                font-size: 1.8rem;
+                flex-direction: row; /* 确保水平排列 */
+                flex-wrap: nowrap; /* 防止换行 */
+                gap: 10px;
+                white-space: nowrap; /* 防止文本换行 */
+            }
+            
+            .celebration-names {
+                font-size: 1.4rem;
+                margin: 15px 0;
+            }
+            
+            /* 改进触摸目标大小 */
+            button, 
+            .calendar-header button,
+            .today-btn,
+            .user-item {
+                min-height: 44px; /* iOS推荐最小触摸目标 */
+            }
+            
+            .calendar-header button {
+                width: 36px;
+                height: 36px;
+            }
+            
+            .today-btn {
+                padding: 10px 18px;
+                font-size: 0.85rem;
+            }
+            
+            /* 确保文本不会溢出 */
+            .user-name,
+            .celebration-name,
+            .upcoming-name {
+                word-break: break-word;
+                overflow-wrap: break-word;
+            }
+            
+            /* 优化滚动体验 */
+            .friends-list-container {
+                -webkit-overflow-scrolling: touch; /* iOS平滑滚动 */
+            }
+        }
+        
+        /* 超小屏幕设备（如iPhone SE等） */
+        @media (max-width: 375px) {
+		    .calendar-nav {
+                gap: 6px; /* 在更小的屏幕上减小间距 */
+            }
+            
+            .calendar-header button {
+                width: 40px;
+                height: 40px;
+            }
+            
+            .today-btn {
+                min-width: 65px;
+                padding: 8px 12px;
+                font-size: 0.85rem;
+                height: 40px; /* 与左右箭头按钮高度一致 */
+            }
+			
+            .calendar-grid {
+                min-height: 400px;
+            }
+            
+            .day-cell {
+                min-height: 55px;
+            }
+            
+            .solar-num {
+                font-size: 0.85rem;
+            }
+            
+            .lunar-info {
+                font-size: 0.6rem;
+            }
+            
+            .birthday-tag {
+                font-size: 0.6rem;
+                padding: 2px 4px;
+            }
+            
+            .upcoming-cards,
+            .celebration-cards {
+                grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            }
+            
+            .friends-panel {
+                height: 450px;
+            }
+            
+            h2 {
+                font-size: 1.2rem;
+                padding-left: 10px;
+                padding-right: 10px;
+                text-align: center;
+            }
+            
+            .theme-toggle {
+                top: 10px;
+                right: 10px;
+                width: 40px;
+                height: 40px;
+            }
+        }
+        
+        /* 平板设备横向优化 */
+        @media (min-width: 768px) and (max-width: 992px) and (orientation: landscape) {
+            .container {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .calendar-grid {
+                height: 600px;
+            }
+            
+            .friends-panel {
+                height: 600px;
+            }
+        }
+        
+        /* 平板设备纵向优化 */
+        @media (min-width: 768px) and (max-width: 992px) and (orientation: portrait) {
+            .calendar-grid {
+                height: 550px;
+            }
+            
+            .friends-panel {
+                height: 550px;
+            }
+        }
+        
+        /* 针对全面屏手机的底部安全区域 */
+        @supports (padding: max(0px)) {
+            body {
+                padding-left: max(12px, env(safe-area-inset-left));
+                padding-right: max(12px, env(safe-area-inset-right));
+                padding-top: max(12px, env(safe-area-inset-top));
+                padding-bottom: max(12px, env(safe-area-inset-bottom));
+            }
+        }
+        
+        /* 防止移动端横屏时字体过大 */
+        @media (max-width: 992px) {
+            html {
+                -webkit-text-size-adjust: 100%; /* 防止iOS横屏时字体放大 */
+            }
+        }
+        
+        /* 移动端优化点击效果 */
+        @media (hover: none) and (pointer: coarse) {
+            .calendar-header button:active,
+            .today-btn:active,
+            .user-item:active {
+                opacity: 0.7;
+                transform: scale(0.98);
+            }
+            
+            /* 移除移动端不需要的悬停效果 */
+            .day-cell:hover {
+                transform: none;
+                box-shadow: none;
+            }
+            
+            .calendar-header button:hover,
+            .today-btn:hover {
+                transform: none;
+            }
+        }
+        
+        /* 移动端日历星期标题优化 */
+        @media (max-width: 768px) {
+            .day-name {
+                padding: 8px 0;
+                font-size: 0.8rem;
+            }
+        }
+        
+        /* 确保移动端模态框不被键盘遮挡 */
+        @media (max-width: 768px) {
+            .fullscreen-celebration {
+                align-items: flex-start;
+                padding-top: 80px;
+                overflow-y: auto;
+            }
+        }
+        
+        /* 移动端图片加载优化 */
+        @media (max-width: 768px) {
+            .avatar,
+            .celebration-avatar {
+                background-size: cover;
+                background-position: center;
+                background-repeat: no-repeat;
+            }
+        }
+        
+        /* 移动端滚动条隐藏（但仍可滚动） */
+        @media (max-width: 768px) {
+            .friends-list-container::-webkit-scrollbar {
+                width: 4px;
+            }
+        }
+        
+        /* 移动端动画性能优化 */
+        @media (max-width: 768px) {
+            * {
+                /* 减少不必要的动画以节省性能 */
+                animation-duration: 0.5s !important;
+            }
+            
+            .celebration-banner {
+                animation: none; /* 移动端可能不需要脉冲动画 */
+            }
+        }
+    </style>
+</head>
+<body>
+
+<h2>
+    <i id="title-icon" class="fas fa-cake-candles"></i> 生日管家
+</h2>
+<div class="theme-toggle" onclick="toggleTheme()">
+    <i class="fas fa-moon"></i>
+</div>
+
+<!-- 全屏庆祝动画 -->
+<div id="fullscreenCelebration" class="fullscreen-celebration">
+    <button class="celebration-close" onclick="closeCelebration()">
+        <i class="fas fa-times"></i>
+    </button>
+    
+    <div class="celebration-message">
+        <h2>
+            <i class="fas fa-birthday-cake"></i>
+            生日快乐！
+            <i class="fas fa-birthday-cake"></i>
+        </h2>
+        <div id="celebrationNames" class="celebration-names">
+            <!-- 通过JS动态填充 -->
+        </div>
+        <p>今天有人过生日，让我们一起祝福TA！</p>
+        <p class="celebration-countdown" id="countdown">10秒后自动关闭</p>
+    </div>
+</div>
+
+<div class="container">
+    <div class="calendar-card">
+        <!-- 庆祝横幅（默认隐藏，有生日时显示） -->
+        <div id="celebrationBanner" class="celebration-banner" style="display: none;">
+            <i class="fas fa-birthday-cake"></i>
+            <span id="bannerText">今天有人过生日！</span>
+        </div>
+        
+        <div class="calendar-header">
+            <div class="calendar-nav">
+                <button onclick="prevMonth()"><i class="fas fa-chevron-left"></i></button>
+                <button onclick="goToToday()" class="today-btn">今天</button>
+                <button onclick="nextMonth()"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            <h2 id="currentMonthDisplay">2023年 10月</h2>
+        </div>
+        <div class="calendar-grid" id="calendarGrid">
+            <!-- 日历将通过JS生成 -->
+        </div>
+    </div>
+
+    <div class="sidebar">
+        <div class="info-panel friends-panel">
+            <h3><i class="fas fa-users"></i> 好友列表 </h3>
+            <div class="friends-list-container">
+                <div id="friendsList">加载中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 动态内容面板：可能是庆祝面板或未来30天面板 -->
+<div id="dynamicPanel" class="upcoming-panel">
+    <!-- 内容将由JavaScript动态生成 -->
+</div>
+
+<script>
+    const solarFestivals = {
+        '1-1': '元旦',
+        '2-14': '情人节',
+        '3-8': '妇女节',
+        '3-12': '植树节',
+        '4-1': '愚人节',
+        '4-22': '地球日',
+        '5-1': '劳动节',
+        '5-4': '青年节',
+        '5-12': '护士节',
+        '6-1': '儿童节',
+        '6-5': '环境日',
+        '7-1': '建党节',
+        '8-1': '建军节',
+        '9-10': '教师节',
+        '9-21': '和平日',
+        '10-1': '国庆节',
+        '10-31': '万圣节',
+        '11-11': '光棍节',
+        '12-1': '艾滋病日',
+        '12-24': '平安夜',
+        '12-25': '圣诞节'
+    };
+
+    // 全局变量
+    let currentDate = new Date();
+    let birthdayData = [];
+    let todayBirthdays = []; // 存储今天过生日的人
+
+    // 提取重复的农历生日计算逻辑
+    function getLunarBirthdaySolarDate(birthDate, targetYear) {
+        const lunarBirth = Lunar.fromDate(birthDate);
+        const targetYearLunar = Lunar.fromYmd(
+            targetYear, 
+            lunarBirth.getMonth(), 
+            lunarBirth.getDay()
+        );
+        return new Date(targetYearLunar.getSolar().toYmd());
+    }
+
+    //计算年龄的函数（退位制，精确到小数点后两位）
+    function calculateAge(birthDate, isLunar = false) {
+        const now = new Date();
+        const birth = new Date(birthDate);
+        
+		// 统一使用公历计算法定年龄
+        // 无论用户过农历还是公历生日，法律年龄都按公历计算
+		
+        // 公历生日直接计算
+        let age = now.getFullYear() - birth.getFullYear();
+        const monthDiff = now.getMonth() - birth.getMonth();
+        const dayDiff = now.getDate() - birth.getDate();
+        
+        // 如果今年生日还没过，年龄减1
+        if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) {
+            age--;
+        }
+        
+        // 计算精确到天的小数部分（退位制）
+        const nextBirthday = new Date(now.getFullYear(), birth.getMonth(), birth.getDate());
+        if (now > nextBirthday) {
+            nextBirthday.setFullYear(nextBirthday.getFullYear() + 1);
+        }
+        const daysUntilNextBirthday = Math.ceil((nextBirthday - now) / (1000 * 60 * 60 * 24));
+        const daysSinceLastBirthday = 365 - daysUntilNextBirthday;
+        
+        // 使用Math.floor向下取整，避免四舍五入
+        const fractionalYear = Math.floor((daysSinceLastBirthday / 365) * 100) / 100;
+        
+        return (age + fractionalYear).toFixed(2);
+    }
+	
+	// 格式化农历日期显示
+    function formatLunarDate(date) {
+        try {
+            const solar = Solar.fromDate(date);
+            const lunar = solar.getLunar();
+            return `${lunar.getYear()}年${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`;
+        } catch (e) {
+            console.log("农历格式化错误:", e);
+            return "农历日期错误";
+        }
+    }
+	
+	// 格式化农历显示（仅月日）
+    function formatLunarDisplay(date) {
+        try {
+            const solar = Solar.fromDate(date);
+            const lunar = solar.getLunar();
+            return `${lunar.getMonthInChinese()}月${lunar.getDayInChinese()}`;
+        } catch (e) {
+            console.log("农历显示格式化错误:", e);
+            return "农历日期";
+        }
+    }
+
+    // 检查今天是否有生日
+    function checkTodayBirthdays() {
+        todayBirthdays = [];
+        const today = new Date();
+        const todayYear = today.getFullYear();
+        const todayMonth = today.getMonth();
+        const todayDate = today.getDate();
+        
+        birthdayData.forEach(person => {
+            const bDay = new Date(person.birthday);
+            let isBirthday = false;
+            
+            if (person.isLunar) {
+                // 农历生日：比较农历月日
+                try {
+                    // 获取今天日期的农历
+                    const todaySolar = Solar.fromDate(today);
+                    const todayLunar = todaySolar.getLunar();
+                    
+                    // 获取生日对应的农历
+                    const birthSolar = Solar.fromDate(bDay);
+                    const birthLunar = birthSolar.getLunar();
+                    
+                    // 比较农历的月和日
+                    if (todayLunar.getMonth() === birthLunar.getMonth() && 
+                        todayLunar.getDay() === birthLunar.getDay()) {
+                        isBirthday = true;
+                    }
+                } catch (e) {
+                    console.log("农历生日计算错误:", e);
+                }
+            } else {
+                // 公历生日：比较公历月日
+                if (todayMonth === bDay.getMonth() && todayDate === bDay.getDate()) {
+                    isBirthday = true;
+                }
+            }
+            
+            if (isBirthday) {
+                todayBirthdays.push(person);
+            }
+        });
+        
+        return todayBirthdays.length > 0;
+    }
+
+    // 初始化：加载 JSON 数据
+    async function loadData() {
+        try {
+            const response = await fetch('birthdays.json');
+            birthdayData = await response.json();
+            renderAll();
+            startAgeTimer();
+        } catch (e) {
+            console.error("无法加载生日数据，请检查 JSON 文件", e);
+            document.getElementById('friendsList').innerHTML = '<div class="empty-state">无法加载数据</div>';
+        }
+    }
+
+    // 渲染函数
+    function renderAll() {
+        renderCalendar();
+        renderFriendsList();
+        renderDynamicPanel();
+    }
+
+    // 核心：日历逻辑
+    function renderCalendar() {
+        const grid = document.getElementById('calendarGrid');
+        const display = document.getElementById('currentMonthDisplay');
+        const banner = document.getElementById('celebrationBanner');
+        grid.innerHTML = '';
+        
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        display.innerText = `${year}年 ${month + 1}月`;
+
+        // 星期头
+        const days = ['日', '一', '二', '三', '四', '五', '六'];
+        days.forEach(d => {
+            const el = document.createElement('div');
+            el.className = 'day-name';
+            el.innerText = d;
+            grid.appendChild(el);
+        });
+
+        const firstDay = new Date(year, month, 1).getDay();
+        const lastDate = new Date(year, month + 1, 0).getDate();
+
+        // 空白占位
+        for(let i = 0; i < firstDay; i++) {
+            grid.appendChild(document.createElement('div'));
+        }
+
+        // 填充日期
+        for(let d = 1; d <= lastDate; d++) {
+            const cell = document.createElement('div');
+            cell.className = 'day-cell';
+            const thisDate = new Date(year, month, d);
+            const today = new Date();
+            
+            // 检查是否是今天
+            const isToday = thisDate.toDateString() === today.toDateString();
+            if (isToday) {
+                cell.classList.add('today');
+            }
+
+            // 农历计算
+            let lunarText = '';
+            let festivalText = '';
+            let festivalsToShow = [];
+            try {
+                const solar = Solar.fromDate(thisDate);
+                const lDate = solar.getLunar();
+                lunarText = lDate.getDayInChinese(); // 这行需要保留，用来显示农历日
+                
+                // 检查公历节日
+                const monthDay = `${thisDate.getMonth() + 1}-${thisDate.getDate()}`;
+                const solarFestival = solarFestivals[monthDay];
+                if (solarFestival) {
+                    festivalsToShow.push(solarFestival);
+                }
+                
+                // 检查农历节日（防止与公历节日重复）
+                const lunarFestivals = lDate.getFestivals();
+                if (lunarFestivals.length > 0) {
+                    // 只添加不重复的农历节日
+                    lunarFestivals.forEach(fest => {
+                        if (!festivalsToShow.includes(fest)) {
+                            festivalsToShow.push(fest);
+                        }
+                    });
+                }
+                
+                // 如果没有节日，检查节气
+                const jieQi = lDate.getJieQi();
+                if (jieQi && festivalsToShow.length === 0) {
+                    festivalsToShow.push(jieQi);
+                }
+                
+                // 如果有多个节日，用斜线分隔显示前2个（避免太长）
+                if (festivalsToShow.length > 0) {
+                    festivalText = festivalsToShow.slice(0, 2).join(' / ');
+                }
+            } catch (e) {
+                console.log("农历计算错误:", e);
+                lunarText = '';
+            }
+
+            // 匹配生日
+            let birthdayHtml = '';
+            birthdayData.forEach(person => {
+                const bDay = new Date(person.birthday);
+                let isBirthday = false;
+                
+                if (person.isLunar) {
+                    // 农历生日：比较农历月日
+                    try {
+                        // 获取当前日期的农历
+                        const currentSolar = Solar.fromDate(thisDate);
+                        const currentLunar = currentSolar.getLunar();
+                        
+                        // 获取生日对应的农历
+                        const birthSolar = Solar.fromDate(bDay);
+                        const birthLunar = birthSolar.getLunar();
+                        
+                        // 比较农历的月和日
+                        if (currentLunar.getMonth() === birthLunar.getMonth() && 
+                            currentLunar.getDay() === birthLunar.getDay()) {
+                            isBirthday = true;
+                        }
+                    } catch (e) {
+                        console.log("农历生日计算错误:", e);
+                    }
+                } else {
+                    // 公历生日：比较公历月日
+                    if (month === bDay.getMonth() && d === bDay.getDate()) {
+                        isBirthday = true;
+                    }
+                }
+                
+                if (isBirthday) {
+                    birthdayHtml += `<div class="birthday-tag"><i class="fas fa-cake-candles"></i> ${person.name}</div>`;
+                    
+                    // 如果是今天并且有生日，添加庆祝样式
+                    if (isToday) {
+                        cell.classList.add('today-birthday');
+                    }
+                }
+            });
+
+            cell.innerHTML = `
+                <div class="solar-num">${d}</div>
+                <div class="lunar-info ${festivalText ? 'festival' : ''}">
+                    ${festivalText || lunarText}
+                </div>
+                ${birthdayHtml}
+            `;
+            grid.appendChild(cell);
+        }
+        
+        // 检查今天是否有生日，显示/隐藏庆祝横幅
+        const hasTodayBirthday = checkTodayBirthdays();
+        if (hasTodayBirthday) {
+            banner.style.display = 'flex';
+            const names = todayBirthdays.map(p => p.name).join('、');
+            document.getElementById('bannerText').textContent = 
+                todayBirthdays.length === 1 ? 
+                `今天 ${names} 过生日！` : 
+                `今天 ${names} 等${todayBirthdays.length}人过生日！`;
+        } else {
+            banner.style.display = 'none';
+        }
+		
+		if (hasTodayBirthday) {
+            // 延迟1秒显示，让用户先看到页面
+            setTimeout(showCelebration, 1000);
+        }
+    }
+
+    // 右侧列表：显示朋友信息和岁数
+    function renderFriendsList() {
+        const list = document.getElementById('friendsList');
+        if (!birthdayData.length) {
+            list.innerHTML = '<div class="empty-state">暂无朋友数据</div>';
+            return;
+        }
+        
+        list.innerHTML = birthdayData.map(person => {
+            const bDate = new Date(person.birthday);
+            const age = calculateAge(person.birthday, person.isLunar);
+            
+            // 检查是否是今天过生日
+            const isTodayBirthday = todayBirthdays.some(p => p.name === person.name);
+            
+            return `
+                <div class="user-item ${isTodayBirthday ? 'today-birthday-item' : ''}">
+                    <img src="images/${person.avatar}" class="avatar" 
+                         onerror="this.src='https://ui-avatars.com/api/?name=${person.name}&background=${person.isLunar ? '3498db' : 'e74c3c'}&color=fff&size=128'">
+                    <div class="user-info">
+                        <div class="user-name">${person.name} ${isTodayBirthday ? '🎉' : ''}</div>
+                        <div class="user-details">
+                            <span class="calendar-type ${person.isLunar ? 'lunar' : ''}">
+                                ${person.isLunar ? '农历' : '公历'}
+                            </span>
+                            ${person.isLunar ? formatLunarDate(bDate) : `${bDate.getFullYear()}年${bDate.getMonth() + 1}月${bDate.getDate()}日`}<br>
+                            法定年龄: <span class="age-num" data-birth="${person.birthday}" data-lunar="${person.isLunar}">${age}</span> 岁
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    // 更新所有年龄显示
+    function updateAges() {
+        document.querySelectorAll('.age-num').forEach(span => {
+            const birth = span.dataset.birth;
+            const isLunar = span.dataset.lunar === 'true';
+            const age = calculateAge(birth, isLunar);
+            span.textContent = age;
+        });
+    }
+	
+	// 创建彩条效果
+    function createConfetti() {
+        const container = document.getElementById('fullscreenCelebration');
+        const colors = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#9b5de5', '#00bbf9'];
+        
+        // 移除原有的彩条
+        const existingConfetti = container.querySelectorAll('.confetti');
+        existingConfetti.forEach(el => el.remove());
+        
+        // 创建新的彩条动画
+        for (let i = 0; i < 50; i++) { // 减少数量以提高性能
+            const confetti = document.createElement('div');
+            confetti.className = 'confetti';
+            
+            // 随机颜色
+            confetti.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            
+            // 随机位置 - 确保在整个屏幕上分布
+            confetti.style.left = Math.random() * 100 + 'vw';
+            
+            // 随机大小
+            const size = Math.random() * 10 + 5;
+            confetti.style.width = size + 'px';
+            confetti.style.height = size * 2 + 'px';
+            
+            // 随机旋转角度
+            const rotation = Math.random() * 360;
+            
+            // 动画设置 - 确保完整的下落动画
+            const duration = Math.random() * 2 + 2; // 2-4秒
+            const delay = Math.random() * 2; // 随机延迟开始
+            
+            confetti.style.animation = `fall ${duration}s ease-in ${delay}s infinite`;
+            
+            // 创建下落动画
+            if (!document.querySelector('#confetti-animation')) {
+                const style = document.createElement('style');
+                style.id = 'confetti-animation';
+                style.innerHTML = `
+                    @keyframes fall {
+                        0% {
+                            top: -50px;
+                            transform: rotate(${rotation}deg);
+                            opacity: 1;
+                        }
+                        100% {
+                            top: 100vh;
+                            transform: rotate(${rotation + 360}deg);
+                            opacity: 0;
+                        }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            container.appendChild(confetti);
+        }
+    }
+    
+    // 显示庆祝动画
+    function showCelebration() {
+        const celebration = document.getElementById('fullscreenCelebration');
+        const namesElement = document.getElementById('celebrationNames');
+        
+        if (todayBirthdays.length > 0) {
+            // 显示庆祝动画
+            celebration.style.display = 'flex';
+            
+            // 更新名字显示
+            const names = todayBirthdays.map(p => p.name).join('、');
+            namesElement.textContent = names;
+            
+            // 创建彩条
+            createConfetti();
+            
+            // 设置自动关闭倒计时
+            let countdown = 10;
+            const countdownElement = document.getElementById('countdown');
+            const countdownInterval = setInterval(() => {
+                countdown--;
+                countdownElement.textContent = `${countdown}秒后自动关闭`;
+                
+                if (countdown <= 0) {
+                    clearInterval(countdownInterval);
+                    closeCelebration();
+                }
+            }, 1000);
+            
+            // 保存倒计时引用以便清除
+            window.celebrationCountdown = countdownInterval;
+        }
+    }
+    
+    // 关闭庆祝动画
+    function closeCelebration() {
+        const celebration = document.getElementById('fullscreenCelebration');
+        celebration.style.display = 'none';
+        
+        // 清除彩条
+        const confettiElements = document.querySelectorAll('.confetti');
+        confettiElements.forEach(el => el.remove());
+        
+        // 清除倒计时
+        if (window.celebrationCountdown) {
+            clearInterval(window.celebrationCountdown);
+        }
+    }
+
+    // 渲染动态面板：庆祝面板或未来30天面板
+    function renderDynamicPanel() {
+        const container = document.getElementById('dynamicPanel');
+        const hasTodayBirthday = checkTodayBirthdays();
+        
+        if (hasTodayBirthday && todayBirthdays.length > 0) {
+            // 显示庆祝面板
+            container.className = 'upcoming-panel celebration-panel';
+            container.innerHTML = `
+                <h3 class="celebration-title"><i class="fas fa-birthday-cake"></i> 今日寿星 </h3>
+                <div class="celebration-cards" id="celebrationContent">
+                    ${todayBirthdays.map(person => {
+                        const bDate = new Date(person.birthday);
+                        const age = Math.round(parseFloat(calculateAge(person.birthday, person.isLunar)));
+                        const dateStr = person.isLunar ? 
+                            formatLunarDisplay(bDate) : 
+                            `${bDate.getMonth() + 1}月${bDate.getDate()}日`;
+                        
+                        return `
+                            <div class="celebration-card">
+                                <img src="images/${person.avatar}" class="celebration-avatar" 
+                                     onerror="this.src='https://ui-avatars.com/api/?name=${person.name}&background=${person.isLunar ? '3498db' : 'e74c3c'}&color=fff&size=256'">
+                                <div class="celebration-name">${person.name}</div>
+                                <div class="celebration-age">${age} 岁</div>
+                                <div class="celebration-date">
+                                    <span class="calendar-type ${person.isLunar ? 'lunar' : ''}">
+                                        ${person.isLunar ? '农历' : '公历'}
+                                    </span>
+                                    ${dateStr}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        } else {
+            // 显示未来30天生日面板
+            container.className = 'upcoming-panel';
+            container.innerHTML = `
+                <h3><i class="fas fa-gift"></i> 未来30天生日</h3>
+                <div id="upcomingContent" class="upcoming-cards">
+                    ${renderUpcomingContent()}
+                </div>
+            `;
+        }
+    }
+
+    // 生成未来30天生日内容
+    function renderUpcomingContent() {
+        const upcoming = [];
+        const now = new Date();
+        const thirtyDaysLater = new Date(now);
+        thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
+
+        birthdayData.forEach(person => {
+            let nextBirthday;
+            const bDate = new Date(person.birthday);
+            
+            if (person.isLunar) {
+                // 农历生日：找到今年对应的公历日期
+                try {
+                    const currentYear = now.getFullYear();
+                    const thisYearBirth = getLunarBirthdaySolarDate(bDate, currentYear);
+                    nextBirthday = new Date(thisYearBirth);
+                    
+                    // 如果今年生日已经过了，看明年
+                    if (nextBirthday < now) {
+                        const nextYearBirth = getLunarBirthdaySolarDate(bDate, currentYear + 1);
+                        nextBirthday = new Date(nextYearBirth);
+                    }
+                } catch (e) {
+                    console.log("农历生日预告计算错误:", e);
+                    return;
+                }
+            } else {
+                // 公历生日：今年生日
+                const currentYear = now.getFullYear();
+                nextBirthday = new Date(currentYear, bDate.getMonth(), bDate.getDate());
+                
+                // 如果今年生日已经过了，看明年
+                if (nextBirthday < now) {
+                    nextBirthday.setFullYear(currentYear + 1);
+                }
+            }
+            
+            // 检查是否在未来30天内
+            if (nextBirthday >= now && nextBirthday <= thirtyDaysLater) {
+                const diffDays = Math.ceil((nextBirthday - now) / (1000 * 60 * 60 * 24));
+                upcoming.push({
+                    name: person.name,
+                    days: diffDays,
+                    dateDisplay: person.isLunar ? formatLunarDisplay(nextBirthday) : nextBirthday.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' }),
+                    isLunar: person.isLunar
+                });
+            }
+        });
+
+        // 按天数排序
+        upcoming.sort((a, b) => a.days - b.days);
+        
+        if (upcoming.length > 0) {
+            return upcoming.map(u => `
+                <div class="upcoming-card">
+                    <div class="upcoming-name">${u.name}</div>
+                    <div class="upcoming-days">${u.days} 天</div>
+                    <div class="upcoming-date">
+                        <span class="calendar-type ${u.isLunar ? 'lunar' : ''}">
+                            ${u.isLunar ? '农历' : '公历'}
+                        </span>
+                        ${u.dateDisplay}
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            return `
+                <div class="empty-state">
+                    <i class="fas fa-gift"></i>
+                    <h4>近期无生日</h4>
+                    <p>未来30天内没有朋友过生日</p>
+                </div>
+            `;
+        }
+    }
+
+    // 辅助功能
+    function prevMonth() {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        renderCalendar();
+    }
+	
+	function goToToday() {
+        currentDate = new Date();
+        renderAll();
+    }
+    
+    function nextMonth() {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        renderCalendar();
+    }
+    
+    function toggleTheme() {
+        const body = document.documentElement;
+        const icon = document.querySelector('.theme-toggle i');
+        if (body.getAttribute('data-theme') === 'dark') {
+            body.removeAttribute('data-theme');
+            icon.className = 'fas fa-moon';
+            icon.style.color = '';
+            localStorage.setItem('theme', 'light');
+        } else {
+            body.setAttribute('data-theme', 'dark');
+            icon.className = 'fas fa-sun';
+            icon.style.color = '#fbbf24';
+            localStorage.setItem('theme', 'dark');
+        }
+    }
+
+    function startAgeTimer() {
+        updateAges();
+        // 每分钟更新一次年龄
+        setInterval(updateAges, 60000);
+    }
+
+    // 页面加载完成后初始化
+    loadData();
+	
+	// 添加键盘事件监听
+    document.addEventListener('keydown', function(event) {
+        if (event.key === 'Escape' || event.key === ' ') {
+            closeCelebration();
+        }
+    });
+	
+	// 在页面加载完成后设置正确的主题图标
+	window.addEventListener('DOMContentLoaded', function() {
+        const icon = document.querySelector('.theme-toggle i');
+        const theme = localStorage.getItem('theme') || 
+                      (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        
+        if (theme === 'dark') {
+            icon.className = 'fas fa-sun';
+            icon.style.color = '#fbbf24';
+        } else {
+            icon.className = 'fas fa-moon';
+            icon.style.color = '';
+        }
+    });
+</script>
+<script>
+    // PWA Service Worker 注册
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('sw.js')
+                .then(registration => {
+                    console.log('PWA ServiceWorker 注册成功: ', registration.scope);
+                })
+                .catch(err => {
+                    console.log('PWA ServiceWorker 注册失败: ', err);
+                });
+        });
+    }
+</script>
+</body>
+</html>

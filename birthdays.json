@@ -1,0 +1,20 @@
+[
+  {
+    "name": "张三",
+    "birthday": "1991-12-25",
+    "isLunar": false,
+    "avatar": ""
+  },
+  {
+    "name": "李四",
+    "birthday": "2000-03-21",
+    "isLunar": true,
+    "avatar": ""
+  },
+  {
+    "name": "2月29日还要过公历生日的冤种",
+    "birthday": "2000-02-29",
+    "isLunar": false,
+    "avatar": ""
+  }
+]
