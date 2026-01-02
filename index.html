@@ -1375,6 +1375,7 @@
     let currentDate = new Date();
     let birthdayData = [];
     let todayBirthdays = []; // 存储今天过生日的人
+	let isCelebrationShown = false;
 
     // 提取重复的农历生日计算逻辑
     function getLunarBirthdaySolarDate(birthDate, targetYear) {
@@ -1657,7 +1658,10 @@
             banner.style.display = 'none';
         }
 		
-		if (hasTodayBirthday) {
+		if (hasTodayBirthday && !isCelebrationShown) {
+            // 立即标记为已显示，防止后续操作重复触发
+            isCelebrationShown = true;
+            
             // 延迟1秒显示，让用户先看到页面
             setTimeout(showCelebration, 1000);
         }
@@ -1865,48 +1869,79 @@
     // 生成未来30天生日内容
     function renderUpcomingContent() {
         const upcoming = [];
+        // 获取当前时间，并将时间归零，只比较日期
         const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        
         const thirtyDaysLater = new Date(now);
         thirtyDaysLater.setDate(thirtyDaysLater.getDate() + 30);
+        // 同样将结束时间归零
+        thirtyDaysLater.setHours(0, 0, 0, 0);
 
         birthdayData.forEach(person => {
-            let nextBirthday;
+            let nextBirthday = null;
             const bDate = new Date(person.birthday);
             
             if (person.isLunar) {
-                // 农历生日：找到今年对应的公历日期
                 try {
-                    const currentYear = now.getFullYear();
-                    const thisYearBirth = getLunarBirthdaySolarDate(bDate, currentYear);
-                    nextBirthday = new Date(thisYearBirth);
+                    const currentSolarYear = now.getFullYear();
+                    const lunarBirth = Lunar.fromDate(bDate);
+                    // 因为农历年和公历年不仅不同步，而且年初通常属于上一个农历年。
+                    // 所以我们要计算 [去年, 今年, 明年] 三个农历年份对应的生日，
+                    // 看看哪个生日落在未来30天内。
+                    const candidates = [];
                     
-                    // 如果今年生日已经过了，看明年
-                    if (nextBirthday < now) {
-                        const nextYearBirth = getLunarBirthdaySolarDate(bDate, currentYear + 1);
-                        nextBirthday = new Date(nextYearBirth);
+                    // 检查 去年、今年、明年 (例如：当前是2026年1月，我们需要查农历2025年的生日)
+                    for (let offset = -1; offset <= 1; offset++) {
+                        try {
+                            const targetLunarYear = currentSolarYear + offset;
+                            // 注意：Lunar.fromYmd 需要 (农历年, 农历月, 农历日)
+                            // 即使原生日是闰月，通常生日管家逻辑是按同数字月份过（除非当年也有闰月，这里简化处理按数字月）
+                            const simLunar = Lunar.fromYmd(
+                                targetLunarYear, 
+                                Math.abs(lunarBirth.getMonth()), // 确保月份为正数 
+                                lunarBirth.getDay()
+                            );
+                            const solarDate = new Date(simLunar.getSolar().toYmd());
+                            solarDate.setHours(0, 0, 0, 0); // 归零以便比较
+                            candidates.push(solarDate);
+                        } catch (e) {
+                            // 某些农历日期在特定年份可能不存在（如由30日变29日），跳过
+                        }
                     }
+
+                    // 过滤掉已经过去的日期，按时间排序，取第一个
+                    candidates.sort((a, b) => a - b);
+                    nextBirthday = candidates.find(date => date >= now);
+
                 } catch (e) {
                     console.log("农历生日预告计算错误:", e);
                     return;
                 }
             } else {
-                // 公历生日：今年生日
+                // --- 公历生日逻辑 ---
                 const currentYear = now.getFullYear();
                 nextBirthday = new Date(currentYear, bDate.getMonth(), bDate.getDate());
+                nextBirthday.setHours(0, 0, 0, 0);
                 
-                // 如果今年生日已经过了，看明年
+                // 如果今年生日已经过了（严格小于今天），看明年
                 if (nextBirthday < now) {
                     nextBirthday.setFullYear(currentYear + 1);
                 }
             }
             
-            // 检查是否在未来30天内
-            if (nextBirthday >= now && nextBirthday <= thirtyDaysLater) {
-                const diffDays = Math.ceil((nextBirthday - now) / (1000 * 60 * 60 * 24));
+            // 检查是否在未来30天内 (包括今天)
+            if (nextBirthday && nextBirthday >= now && nextBirthday <= thirtyDaysLater) {
+                // 计算天数差
+                const diffTime = nextBirthday - now;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
                 upcoming.push({
                     name: person.name,
                     days: diffDays,
-                    dateDisplay: person.isLunar ? formatLunarDisplay(nextBirthday) : nextBirthday.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' }),
+                    dateDisplay: person.isLunar ? 
+                        formatLunarDisplay(nextBirthday) : 
+                        nextBirthday.toLocaleDateString('zh-CN', { month: 'long', day: 'numeric' }),
                     isLunar: person.isLunar
                 });
             }
@@ -1919,7 +1954,7 @@
             return upcoming.map(u => `
                 <div class="upcoming-card">
                     <div class="upcoming-name">${u.name}</div>
-                    <div class="upcoming-days">${u.days} 天</div>
+                    <div class="upcoming-days">${u.days === 0 ? '今天' : u.days + ' 天'}</div>
                     <div class="upcoming-date">
                         <span class="calendar-type ${u.isLunar ? 'lunar' : ''}">
                             ${u.isLunar ? '农历' : '公历'}
